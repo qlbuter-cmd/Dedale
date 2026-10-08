@@ -1,0 +1,248 @@
+<title>Dédale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout : plein écran 3D blanc doux ; HUD discret aux coins (blindage bas gauche, arme bas droite, bonus bas centre, scores haut centre, éliminations haut gauche, carte haut droite) */
+:root {
+  --bg: #f2f2f2;
+  --panel: rgba(255, 255, 255, .86);
+  --line: rgba(38, 38, 43, .12);
+  --ink: #26262b;
+  --muted: #8b8780;
+  --accent: #ff7a59;
+  --ok: #3aa58a;
+  --display: "Outfit", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Outfit", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--body); }
+#app { position: fixed; inset: 0; user-select: none; -webkit-user-select: none; }
+#view { display: block; width: 100%; height: 100%; }
+
+#hud { position: absolute; inset: 0; pointer-events: none; }
+.cross { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.cross i { position: absolute; background: var(--ink); box-shadow: 0 0 0 1px rgba(255,255,255,.7); transition: transform .08s; }
+.cross i:nth-child(1) { width: 2px; height: 6px; left: -1px; top: -11px; }
+.cross i:nth-child(2) { width: 2px; height: 6px; left: -1px; top: 5px; }
+.cross i:nth-child(3) { width: 6px; height: 2px; left: -11px; top: -1px; }
+.cross i:nth-child(4) { width: 6px; height: 2px; left: 5px; top: -1px; }
+#hitmark { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; transform: rotate(45deg); opacity: 0; }
+#hitmark::before, #hitmark::after { content: ""; position: absolute; background: var(--ink); }
+#hitmark::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#hitmark::after { top: 10px; left: 0; height: 2px; width: 22px; }
+#hitmark.on { opacity: 1; }
+#hitmark.head::before, #hitmark.head::after, #hitmark.kill::before, #hitmark.kill::after { background: var(--accent); }
+
+.lbl { font: 500 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.top { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); left: 50%; transform: translateX(-50%); display: flex; gap: 2px; }
+.stat { display: flex; flex-direction: column; align-items: center; gap: 5px; background: var(--panel); padding: 8px 16px; min-width: 70px; }
+.stat b { font: 500 20px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.corner { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); display: flex; flex-direction: column; gap: 6px; background: var(--panel); padding: 12px 14px; }
+.hp { left: 18px; }
+.ammo { right: 18px; align-items: flex-end; }
+.big { font: 300 40px/0.9 var(--display); font-variant-numeric: tabular-nums; }
+.big small { font: 500 14px/1 var(--mono); margin-left: 6px; color: var(--muted); }
+.bar { width: 170px; max-width: 32vw; height: 3px; background: var(--line); }
+.bar > span { display: block; height: 100%; background: var(--ink); }
+.hp.low .big { color: var(--accent); }
+.hp.low .bar > span { background: var(--accent); }
+#wName { font: 500 13px/1 var(--body); }
+#reloadTxt { font: 500 10px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); min-height: 10px; }
+.slots { display: flex; gap: 3px; }
+.slots span { font: 500 11px/1 var(--mono); padding: 4px 6px; color: rgba(38,38,43,.25); border: 1px solid var(--line); }
+.slots span.own { color: var(--ink); }
+.slots span.cur { background: var(--ink); color: #fff; border-color: var(--ink); }
+#nades { font: 500 11px/1 var(--mono); color: var(--muted); }
+#itemBox { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; background: var(--panel); padding: 9px 14px 9px 9px; }
+#itemBox .sw { width: 32px; height: 32px; border: 1.5px solid var(--item, var(--ink)); color: var(--item, var(--ink)); display: grid; place-items: center; font: 600 17px/1 var(--display); }
+#itemBox b { display: block; font: 600 14px/1.2 var(--body); }
+#itemBox small { display: block; font: 400 12px/1.3 var(--body); color: var(--muted); }
+#itemBox kbd { margin-left: 6px; }
+#effects { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); transform: translateX(-50%); display: flex; gap: 4px; }
+#effects span { font: 500 11px/1 var(--mono); padding: 6px 9px; background: var(--panel); border-bottom: 2px solid var(--c); }
+#map { position: absolute; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 16px); width: 140px; height: 140px; background: var(--panel); }
+#feed { position: absolute; left: 16px; top: calc(env(safe-area-inset-top, 0px) + 16px); display: flex; flex-direction: column; gap: 3px; max-width: 42vw; }
+#feed div { background: var(--panel); padding: 6px 10px; font-size: 13px; transition: opacity .4s; }
+#feed b { font-weight: 600; }
+#feed em { font-style: normal; color: var(--muted); font-size: 11px; margin-left: 6px; }
+#feed em.h { color: var(--accent); }
+#vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,90,70,.45) 100%); opacity: 0; }
+#stormTint { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(90,130,220,.35) 100%); opacity: 0; }
+#starTint { position: absolute; inset: 0; box-shadow: inset 0 0 90px 12px rgba(255,190,70,.8); opacity: 0; }
+#flashWhite { position: absolute; inset: 0; background: #fff; opacity: 0; }
+#dmgDir { position: absolute; left: 50%; top: 50%; width: 200px; height: 200px; margin: -100px 0 0 -100px; opacity: 0; }
+#dmgDir::before { content: ""; position: absolute; left: 50%; top: 0; margin-left: -16px; border: 16px solid transparent; border-bottom: 14px solid var(--accent); border-top: 0; }
+#toast { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); font: 500 14px/1 var(--body); background: var(--panel); padding: 10px 14px; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+#toast.on { opacity: 1; }
+#hint { position: absolute; left: 50%; top: 57%; transform: translateX(-50%); font: 400 13px/1 var(--body); background: var(--panel); padding: 8px 12px; opacity: 0; white-space: nowrap; }
+#hint.on { opacity: 1; }
+#death { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(242,242,242,.5); text-align: center; }
+#death h2 { margin: 0; font: 300 clamp(40px, 7vw, 68px)/1 var(--display); letter-spacing: -.01em; }
+#death p { margin: 12px 0 0; font: 500 12px/1.4 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(242,242,242,.55); overflow-y: auto; }
+.card { width: 100%; max-width: 520px; background: #fff; box-shadow: 0 30px 80px -30px rgba(38,38,43,.35); padding: 30px 30px 24px; display: flex; flex-direction: column; gap: 18px; }
+.eyebrow { font: 500 10px/1.3 var(--body); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font: 200 clamp(52px, 13vw, 76px)/.9 var(--display); letter-spacing: -.03em; }
+.lead { margin: 0; font-size: 15px; line-height: 1.55; max-width: 46ch; color: #4a4a50; }
+button { font-family: var(--body); cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.go { font: 500 16px/1 var(--body); letter-spacing: .04em; color: #fff; background: var(--ink); border: 0; padding: 14px 30px; }
+.go:hover { background: #000; }
+.btn { font: 500 14px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); padding: 12px 14px; }
+.btn:hover { border-color: var(--ink); }
+.actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); }
+.seg button { font: 500 13px/1 var(--body); color: var(--ink); background: transparent; border: 0; padding: 9px 13px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field > span { font: 500 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+details { border-top: 1px solid var(--line); padding-top: 14px; }
+summary { cursor: pointer; font-weight: 500; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; margin: 14px 0 0; font-size: 14px; }
+.keys dt { display: flex; gap: 4px; flex-wrap: wrap; }
+.keys dd { margin: 0; color: var(--muted); }
+kbd { font: 500 11px/1 var(--mono); padding: 3px 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: #fff; color: var(--ink); }
+.arsenal { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin: 14px 0 0; font-size: 13px; }
+.arsenal h3 { grid-column: 1 / -1; margin: 6px 0 0; font: 500 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.arsenal p { margin: 0; color: var(--muted); }
+.arsenal b { color: var(--ink); font-weight: 500; }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; margin-top: 14px; }
+.row output { font: 500 13px/1 var(--mono); }
+.row input { grid-column: 1 / -1; width: 100%; accent-color: var(--ink); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th { text-align: left; font: 500 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); padding: 0 8px 10px; }
+th.n, td.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td { padding: 10px 8px; border-top: 1px solid var(--line); }
+td .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 10px; }
+tr.me td { background: rgba(38,38,43,.04); font-weight: 500; }
+#endInfo { font: 400 13px/1.4 var(--body); color: var(--muted); }
+#err { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 50; background: #fff; color: #b3261e; font: 500 13px/1.4 var(--mono); padding: 10px 12px; box-shadow: 0 8px 30px -10px rgba(0,0,0,.3); user-select: text; -webkit-user-select: text; }
+.flabel { font: 500 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+input[type=text] { font: 500 16px/1 var(--body); color: var(--ink); background: #fff; border: 1px solid var(--line); padding: 11px 12px; width: 100%; box-sizing: border-box; }
+input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.invite { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+.code { font: 500 18px/1 var(--mono); letter-spacing: .14em; border: 1px solid var(--line); padding: 10px 12px; }
+.linkbox { display: block; margin-top: 6px; font: 400 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+#netStatus { margin: 10px 0 0; font-size: 13px; color: var(--muted); min-height: 1em; }
+#netStatus.err { color: #b3261e; }
+@media (max-width: 600px) { #map { width: 100px; height: 100px; } .stat { padding: 7px 10px; min-width: 0; } .big { font-size: 30px; } .arsenal { grid-template-columns: 1fr; } #itemBox small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .cross i { transition: none; } }
+</style>
+
+<div id="app">
+  <div id="err" hidden></div>
+  <div id="hud" hidden>
+    <div id="stormTint"></div>
+    <div id="starTint"></div>
+    <div class="cross" id="cross"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmark"></div>
+    <div id="feed"></div>
+    <div class="top">
+      <div class="stat"><span class="lbl">Toi</span><b id="myKills">0</b></div>
+      <div class="stat"><span class="lbl">Temps</span><b id="timer">10:00</b></div>
+      <div class="stat"><span class="lbl">En tête</span><b id="leadKills">0</b></div>
+    </div>
+    <canvas id="map" width="300" height="300"></canvas>
+    <div class="corner hp" id="hpBox">
+      <span class="lbl">Blindage</span>
+      <div class="big" id="hp">100</div>
+      <div class="bar"><span id="hpBar" style="width:100%"></span></div>
+    </div>
+    <div id="effects"></div>
+    <div id="itemBox" hidden><div class="sw" id="itemSw">?</div><div><b id="itemName"></b><small id="itemDesc"></small></div><kbd>E</kbd></div>
+    <div class="corner ammo">
+      <div class="slots" id="slots"></div>
+      <span id="reloadTxt"></span>
+      <span id="wName">Pistolet</span>
+      <div class="big"><span id="ammo">12</span><small id="reserve">/ ∞</small></div>
+      <div class="bar"><span id="ammoBar" style="width:100%"></span></div>
+      <span id="nades">Grenades 1</span>
+    </div>
+    <div id="hint"></div>
+    <div id="toast"></div>
+    <div id="dmgDir"></div>
+    <div id="vignette"></div>
+    <div id="flashWhite"></div>
+    <div id="death" hidden><div><h2>Éliminé</h2><p id="deathTxt"></p></div></div>
+  </div>
+
+  <div id="board" class="overlay" hidden>
+    <div class="card">
+      <span class="eyebrow" id="boardEyebrow">Classement</span>
+      <h1 id="boardTitle" style="font-size:clamp(36px,8vw,52px)">Scores</h1>
+      <table><thead><tr><th>Joueur</th><th class="n">Élim.</th><th class="n">Morts</th></tr></thead><tbody id="boardBody"></tbody></table>
+      <div class="actions" id="boardActions" hidden><button class="go" id="again" type="button">Rejouer</button><span id="endInfo"></span></div>
+    </div>
+  </div>
+
+  <div id="menu" class="overlay">
+    <div class="card">
+      <span class="eyebrow" id="mEyebrow">Prototype · étape 3 sur 3 : armes et bonus, en solo</span>
+      <h1>Dédale</h1>
+      <p class="lead" id="mLead">Toi contre 4 bots, chacun pour soi. Premier à 25 éliminations ou meilleur score au bout de 10 minutes. Ramasse les armes et le katana au sol, le lance-grenades en haut des murs, et ouvre les caisses mystère : plus tu es mal classé, meilleurs sont les bonus.</p>
+      <div id="netBox" hidden>
+        <div class="field"><label for="pname" class="flabel">Ton pseudo</label><input type="text" id="pname" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Joueur"></div>
+        <div class="field" style="margin-top:14px"><span>Partie privée</span><div class="invite"><span class="code" id="roomCode">-----</span><button class="btn" id="copyLink" type="button">Copier le lien d'invitation</button></div><span class="linkbox" id="linkBox"></span></div>
+        <p id="netStatus"></p>
+      </div>
+      <div class="field" id="diffField"><span>Niveau des bots</span>
+        <div class="seg" id="diff"><button type="button" data-v="0">Facile</button><button type="button" data-v="1">Normal</button><button type="button" data-v="2">Difficile</button></div>
+      </div>
+      <div class="actions">
+        <button class="go" id="play" type="button">Jouer</button>
+        <button class="btn" id="restart" type="button" hidden>Recommencer la partie</button>
+      </div>
+      <details>
+        <summary>Commandes</summary>
+        <dl class="keys">
+          <dt><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Se déplacer (WASD en QWERTY)</dd>
+          <dt><kbd>Espace</kbd></dt><dd>Sauter, maintenir pour enchaîner</dd>
+          <dt><kbd>Clic</kbd></dt><dd>Tirer</dd>
+          <dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><kbd>5</kbd></dt><dd>Changer d'arme (ou molette)</dd>
+          <dt><kbd>G</kbd></dt><dd>Lancer une grenade</dd>
+          <dt><kbd>E</kbd></dt><dd>Utiliser le bonus</dd>
+          <dt><kbd>R</kbd></dt><dd>Recharger</dd>
+          <dt><kbd>Tab</kbd></dt><dd>Classement</dd>
+          <dt><kbd>M</kbd></dt><dd>Carte</dd>
+          <dt><kbd>Échap</kbd></dt><dd>Pause</dd>
+        </dl>
+      </details>
+      <details>
+        <summary>Armes et bonus</summary>
+        <div class="arsenal">
+          <h3>Armes</h3>
+          <p><b>Colt M1911</b> · 7 balles, 30 dégâts, munitions infinies</p>
+          <p><b>Thompson M1A1</b> · 30 balles, rafale, 14 dégâts</p>
+          <p><b>M1 Garand</b> · clip de 8 balles, 34 dégâts, précis</p>
+          <p><b>Lance-grenades M7</b> · 1 grenade par tir, tue d'un coup, en haut des murs</p>
+          <p><b>Katana</b> · corps à corps, tue d'un coup</p>
+          <p><b>Grenades Mk 2</b> · 3 max, explosent après 2 s, tuent d'un coup</p>
+          <p>Tir à la tête : dégâts doublés</p>
+          <h3>Caisses mystère</h3>
+          <p><b>Missile chercheur</b> · fonce sur le premier du classement, tue à l'impact</p>
+          <p><b>Bombe rebondissante</b> · la plus fréquente : file au sol, rebondit sur les murs et tue au contact</p>
+          <p><b>Mine</b> · presque invisible, tue celui qui marche dessus</p>
+          <p><b>Turbo</b> · vitesse ×1,6 pendant 4 s</p>
+          <p><b>Surcharge</b> · invincible 6 s, élimine au contact</p>
+          
+          <p><b>Orbes gardiennes</b> · 3 orbes qui bloquent les coups</p>
+        </div>
+      </details>
+      <details>
+        <summary>Options</summary>
+        <div class="field" style="margin-top:14px"><span>Qualité graphique</span>
+          <div class="seg" id="quality"><button type="button" data-v="0">Basse</button><button type="button" data-v="1">Moyenne</button><button type="button" data-v="2">Haute</button></div>
+        </div>
+        <div class="row"><label for="exposure">Luminosité</label><output id="exposureOut"></output><input type="range" id="exposure" min="0.6" max="1.6" step="0.05"></div>
+        <div class="row"><label for="sens">Sensibilité souris</label><output id="sensOut"></output><input type="range" id="sens" min="0.5" max="6" step="0.1"></div>
+        <div class="row"><label for="fov">Champ de vision</label><output id="fovOut"></output><input type="range" id="fov" min="70" max="120" step="1"></div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
