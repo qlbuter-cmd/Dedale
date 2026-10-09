@@ -102,7 +102,7 @@ const rooms = new Map();
 let nextId = 1;
 const cleanRoom = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 const cleanName = (n) => String(n || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16) || 'Joueur';
-const pub = (p) => ({ id: p.id, name: p.name, color: p.color });
+const pub = (p) => ({ id: p.id, name: p.name, color: p.color, char: p.char });
 
 function broadcast(room, msg, except) {
   const frame = encodeFrame(JSON.stringify(msg));
@@ -125,7 +125,7 @@ function onConnection(ws) {
       if (r.players.size >= MAX_PLAYERS) { ws.send({ t: 'error', msg: 'Cette partie est complète (' + MAX_PLAYERS + ' joueurs maximum).' }); return ws.close(); }
       const used = new Set([...r.players.values()].map((p) => p.color));
       room = r;
-      me = { id: nextId++, ws, name: cleanName(m.name), color: COLORS.find((c) => !used.has(c)) || COLORS[0], joined: Date.now() };
+      me = { id: nextId++, ws, char: ['anto', 'dav', 'marc'].includes(m.char) ? m.char : 'nico', name: cleanName(m.name), color: COLORS.find((c) => !used.has(c)) || COLORS[0], joined: Date.now() };
       room.players.set(me.id, me);
       if (!room.host) room.host = me.id;
       ws.send({ t: 'welcome', id: me.id, you: pub(me), host: room.host, players: [...room.players.values()].map(pub) });

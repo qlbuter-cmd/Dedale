@@ -1,8 +1,9 @@
 <title>Dédale</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=JetBrains+Mono:wght@500&family=Bangers&display=swap">
 <style>
+[hidden] { display: none !important; } /* sinon les panneaux en display:grid restent visibles une fois cachés */
 /* Layout : plein écran 3D blanc doux ; HUD discret aux coins (blindage bas gauche, arme bas droite, bonus bas centre, scores haut centre, éliminations haut gauche, carte haut droite) */
 :root {
   --bg: #f2f2f2;
@@ -128,6 +129,25 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
 .linkbox { display: block; margin-top: 6px; font: 400 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 #netStatus { margin: 10px 0 0; font-size: 13px; color: var(--muted); min-height: 1em; }
 #netStatus.err { color: #b3261e; }
+.chars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.chars button { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0; background: #fff; border: 1px solid var(--line); color: var(--ink); text-align: left; overflow: hidden; }
+.chars img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: center 20%; background: #eee; max-width: 100%; }
+.chars b { font: 600 14px/1 var(--body); padding: 10px 12px; }
+.chars button[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.chars button[aria-pressed="true"] b { background: var(--ink); color: #fff; }
+/* duel 1v1 : titre façon jeu de combat */
+#duel { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; pointer-events: none; transition: transform .5s cubic-bezier(.2,.8,.2,1), top .5s; }
+#duel .title { font: 400 clamp(40px, 8.5vw, 124px)/.95 "Bangers", Impact, "Arial Black", sans-serif; letter-spacing: .03em; transform: skew(-9deg); background: linear-gradient(180deg, #fff5b0 0%, #ffd23a 38%, #ff7a1a 62%, #e0201b 100%); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 3px #120c08; filter: drop-shadow(6px 7px 0 #120c08); text-align: center; white-space: nowrap; max-width: 96vw; }
+#duel .vs { font: 400 clamp(20px, 3.4vw, 40px)/1 "Bangers", Impact, sans-serif; letter-spacing: .08em; color: #fff; -webkit-text-stroke: 1.5px #120c08; filter: drop-shadow(3px 3px 0 #120c08); transform: skew(-9deg); }
+#duel .time { font: 500 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; background: #120c08; color: #ffd23a; padding: 6px 10px; }
+#duel.show .title { animation: slam .55s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes slam { 0% { opacity: 0; transform: skew(-9deg) scale(3) rotate(-6deg); } 60% { opacity: 1; transform: skew(-9deg) scale(.92) rotate(1deg); } 100% { transform: skew(-9deg) scale(1); } }
+#duel.small { justify-content: flex-start; top: calc(env(safe-area-inset-top, 0px) + 74px); }
+#duel.small .title { font-size: clamp(26px, 4vw, 44px); -webkit-text-stroke: 1.5px #120c08; filter: drop-shadow(3px 3px 0 #120c08); animation: none; }
+#duel.small .vs { font-size: 18px; }
+#ko { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font: 400 clamp(90px, 20vw, 240px)/1 "Bangers", Impact, sans-serif; color: #ffd23a; -webkit-text-stroke: 4px #120c08; filter: drop-shadow(8px 8px 0 #120c08); transform: skew(-9deg); }
+#ko.show { animation: slam .5s cubic-bezier(.2,1.6,.4,1) both; }
+@media (prefers-reduced-motion: reduce) { #duel.show .title, #ko.show { animation: none; } }
 @media (max-width: 600px) { #map { width: 100px; height: 100px; } .stat { padding: 7px 10px; min-width: 0; } .big { font-size: 30px; } .arsenal { grid-template-columns: 1fr; } #itemBox small { display: none; } }
 @media (prefers-reduced-motion: reduce) { .cross i { transition: none; } }
 </style>
@@ -166,6 +186,8 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
     <div id="dmgDir"></div>
     <div id="vignette"></div>
     <div id="flashWhite"></div>
+    <div id="duel" hidden><div class="title">1V1 GARE DU NORD</div><div class="vs" id="duelVs"></div><div class="time" id="duelTime"></div></div>
+    <div id="ko" hidden>K.O.</div>
     <div id="death" hidden><div><h2>Éliminé</h2><p id="deathTxt"></p></div></div>
   </div>
 
@@ -182,11 +204,19 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
     <div class="card">
       <span class="eyebrow" id="mEyebrow">Prototype · étape 3 sur 3 : armes et bonus, en solo</span>
       <h1>Dédale</h1>
-      <p class="lead" id="mLead">Toi contre 4 bots, chacun pour soi. Premier à 25 éliminations ou meilleur score au bout de 10 minutes. Ramasse les armes et le katana au sol, le lance-grenades en haut des murs, et ouvre les caisses mystère : plus tu es mal classé, meilleurs sont les bonus.</p>
+      <p class="lead" id="mLead">Toi contre 4 bots, chacun pour soi. Premier à 25 éliminations ou meilleur score au bout de 10 minutes. Ramasse les armes au sol, le lance-grenades en haut des murs, et ouvre les caisses mystère. Poings en main, clic droit sur un adversaire proche pour le défier en 1v1 : élimination ×3.</p>
       <div id="netBox" hidden>
         <div class="field"><label for="pname" class="flabel">Ton pseudo</label><input type="text" id="pname" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Joueur"></div>
         <div class="field" style="margin-top:14px"><span>Partie privée</span><div class="invite"><span class="code" id="roomCode">-----</span><button class="btn" id="copyLink" type="button">Copier le lien d'invitation</button></div><span class="linkbox" id="linkBox"></span></div>
         <p id="netStatus"></p>
+      </div>
+      <div class="field"><span>Personnage</span>
+        <div class="chars" id="charPick">
+          <button type="button" data-v="nico"><img alt=""><b>Nico</b></button>
+          <button type="button" data-v="anto"><img alt=""><b>Anto</b></button>
+          <button type="button" data-v="dav"><img alt=""><b>Dav</b></button>
+          <button type="button" data-v="marc"><img alt=""><b>Marcouney</b></button>
+        </div>
       </div>
       <div class="field" id="diffField"><span>Niveau des bots</span>
         <div class="seg" id="diff"><button type="button" data-v="0">Facile</button><button type="button" data-v="1">Normal</button><button type="button" data-v="2">Difficile</button></div>
@@ -201,7 +231,9 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
           <dt><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Se déplacer (WASD en QWERTY)</dd>
           <dt><kbd>Espace</kbd></dt><dd>Sauter, maintenir pour enchaîner</dd>
           <dt><kbd>Clic</kbd></dt><dd>Tirer</dd>
-          <dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><kbd>5</kbd></dt><dd>Changer d'arme (ou molette)</dd>
+          <dt><kbd>1</kbd></dt><dd>Poings</dd>
+          <dt><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><kbd>5</kbd></dt><dd>Armes : Colt, Thompson, Garand, lance-grenades (ou molette)</dd>
+          <dt><kbd>Clic droit</kbd></dt><dd>Avec les poings : défier le joueur devant toi en 1v1</dd>
           <dt><kbd>G</kbd></dt><dd>Lancer une grenade</dd>
           <dt><kbd>E</kbd></dt><dd>Utiliser le bonus</dd>
           <dt><kbd>R</kbd></dt><dd>Recharger</dd>
@@ -218,17 +250,16 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
           <p><b>Thompson M1A1</b> · 30 balles, rafale, 14 dégâts</p>
           <p><b>M1 Garand</b> · clip de 8 balles, 34 dégâts, précis</p>
           <p><b>Lance-grenades M7</b> · 1 grenade par tir, tue d'un coup, en haut des murs</p>
-          <p><b>Katana</b> · corps à corps, tue d'un coup</p>
+          <p><b>Poings</b> · 25 dégâts, clic droit pour défier en 1v1</p>
           <p><b>Grenades Mk 2</b> · 3 max, explosent après 2 s, tuent d'un coup</p>
           <p>Tir à la tête : dégâts doublés</p>
+          <p><b>Duel 1v1</b> · invisibles aux autres, poings uniquement, 60 s maximum, élimination ×3</p>
+          <p class="credit">Bras FPS : « cartoon FPS Arms » de DJMaesen (Sketchfab), licence CC-BY 4.0</p>
           <h3>Caisses mystère</h3>
           <p><b>Missile chercheur</b> · fonce sur le premier du classement, tue à l'impact</p>
           <p><b>Bombe rebondissante</b> · la plus fréquente : file au sol, rebondit sur les murs et tue au contact</p>
           <p><b>Mine</b> · presque invisible, tue celui qui marche dessus</p>
-          <p><b>Turbo</b> · vitesse ×1,6 pendant 4 s</p>
-          <p><b>Surcharge</b> · invincible 6 s, élimine au contact</p>
-          
-          <p><b>Orbes gardiennes</b> · 3 orbes qui bloquent les coups</p>
+          <p><b>Invincibilité</b> · invincible 6 s, élimine au contact, avec sa musique entendue par tous</p>
         </div>
       </details>
       <details>
@@ -236,6 +267,7 @@ input[type=text]:focus-visible { outline: 2px solid var(--accent); outline-offse
         <div class="field" style="margin-top:14px"><span>Qualité graphique</span>
           <div class="seg" id="quality"><button type="button" data-v="0">Basse</button><button type="button" data-v="1">Moyenne</button><button type="button" data-v="2">Haute</button></div>
         </div>
+        <div class="row"><label for="music">Musique</label><output id="musicOut"></output><input type="range" id="music" min="0" max="1" step="0.05"></div>
         <div class="row"><label for="exposure">Luminosité</label><output id="exposureOut"></output><input type="range" id="exposure" min="0.6" max="1.6" step="0.05"></div>
         <div class="row"><label for="sens">Sensibilité souris</label><output id="sensOut"></output><input type="range" id="sens" min="0.5" max="6" step="0.1"></div>
         <div class="row"><label for="fov">Champ de vision</label><output id="fovOut"></output><input type="range" id="fov" min="70" max="120" step="1"></div>
