@@ -1,6 +1,6 @@
 # Dédale
 
-FPS en ligne dans un labyrinthe. Jusqu'à 5 joueurs par partie, qui se rejoignent avec un lien privé.
+FPS en ligne dans un labyrinthe. Jusqu'à 6 joueurs par partie, qui se rejoignent avec un lien privé.
 
 ## Mettre le jeu en ligne sur Render (environ 10 minutes)
 
